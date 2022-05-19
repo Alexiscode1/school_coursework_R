@@ -1,0 +1,645 @@
+---
+title: "project3-yuanyuan-li"
+output: html_document
+---
+
+```{r}
+library(xml2)
+library(stringr)
+library(rvest)
+library(ggplot2)
+library(dplyr)
+```
+
+
+For this project, you will work with data scraped from web pages associated with the Comprehensive R Archive Network (CRAN) of R packages. This repository maintains a page describing each package, along with a record of prior versions of the package. You will analyze and/or visualize the data scraped from such web pages to learn about the structure of CRAN’s documentation and the provenance of specific packages in your repertoire.
+
+
+
+### 1) Version Control
+
+#### a) 
+
+The version history of the package stringr is accessible from https://cran.r-project.org/src/contrib/Archive/stringr/, which page resembles the above screenshot. Write one or more commands to read the component html table into R as a data frame, tidy the data frame as necessary, and print the complete data frame to your knitted file.
+
+Hint: You can remove uninformative rows of your data frame by filtering out those with an empty string in the column for date of last modification.
+
+```{r}
+
+url <-"https://cran.r-project.org/src/contrib/Archive/stringr/"
+
+# Download HTML file to my working directory
+download.file(url, 'stringr.html')
+```
+
+
+```{r}
+# Read html 
+stringr_data <-read_html('stringr.html')
+```
+
+
+```{r}
+# read the component html table into R as a data frame
+stringr_df <- as.data.frame(html_table(stringr_data))
+stringr_df
+```
+```{r}
+# remove uninformative rows of your data frame by filtering out those with an empty string in the column for date of last modification.
+
+stringr_df = stringr_df %>% filter(Last.modified!="")
+stringr_df = stringr_df[,-1]
+stringr_df
+```
+
+
+
+#### b) 
+
+Use your data frame from part (a) and ggplot syntax to create a step plot with of the package size over time. You will be graded on the quality of your plot, which should be visually appealing and labeled appropriately.
+
+Hint: Use regular expressions and/or string manipulation to reformat the columns for size and date of last modification.
+
+
+```{r}
+# get rid of the units in Size column
+matrix_size = str_extract_all(stringr_df$Size, regex('[0-9.]+(?=K)'),simplify = TRUE)
+matrix_size
+```
+```{r}
+# transform the size into numeric forms
+stringr_df$Size = as.numeric(matrix_size[,1])
+```
+
+```{r}
+stringr_df
+```
+
+
+```{r}
+ggplot(stringr_df, aes(x = Last.modified, y = Size, group =1)) + geom_step() +theme(axis.text.x = element_text(angle = 90)) + ggtitle("Package Size Over Time") +theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+#### c) 
+
+Scrape the version-history tables for the packages dplyr, ggplot2, knitr and stringr. Use ggplot syntax with faceting to create a 2x2 grid of step plots for the size of each of the four packages (including stringr) over time. Your plots should be visually appealing and labeled appropriately.
+
+Hint: You may wish to write a function that accepts as its argument the name of a package (e.g., “dplyr”), and which performs the necessary web scraping and conversion to data frame for a single package at a time.
+
+Hint: Watch out! Some package sizes will be in kilobytes (denoted by ‘K’), and some in megabytes (denoted by ‘M’). Recall that 1 MB == 1024 KB.
+
+
+```{r}
+version_package =  function(PACKAGE){
+htm = read_html(paste0("https://cran.r-project.org/src/contrib/Archive/",PACKAGE,"/"))
+pack_df <- as.data.frame(html_table(htm)) #import as a data frame
+pack_df = pack_df %>% filter(Last.modified!="") #remove uninformative rows
+
+a = pack_df$Size
+for (i in 1:length(a)){ 
+  # if detect "M" get rid of the units and rescale it
+ if (str_detect(a[i], regex('[0-9.]+(?=M)'))){
+  a[i] = str_extract(a[i], regex('[0-9.]+(?=M)'))
+  a[i] = as.numeric(a[i])*1024}
+  else {
+    a[i] = str_extract(a[i], regex('[0-9.]+(?=K)'))
+    a[i] = as.numeric(a[i])
+  }
+}
+pack_df$Size = as.numeric(a)
+
+#get rid of the uninformative column 1
+pack_df = pack_df[,-1]
+}
+```
+
+```{r}
+string_dataframe = version_package("stringr")
+
+# Since column "Description" has null value inside the original dataframe, I added some descriptions so that it's easier for me to group the data and plot graph in the following questions.
+
+string_dataframe$Description = rep("string",length(string_dataframe$Description))
+
+string_dataframe
+```
+
+```{r}
+dplyr_dataframe = version_package("dplyr")
+
+dplyr_dataframe$Description = rep("dplyr",length(dplyr_dataframe$Description))
+
+head(dplyr_dataframe, n=10)
+
+str(dplyr_dataframe)
+```
+
+```{r}
+ggplot2_dataframe = version_package("ggplot2")
+
+ggplot2_dataframe$Description = rep("ggplot2",length(ggplot2_dataframe$Description))
+
+head(ggplot2_dataframe, n =10)
+
+str(ggplot2_dataframe)
+```
+```{r}
+
+knitr_dataframe =version_package("knitr")
+
+knitr_dataframe$Description = rep("knitr", length(knitr_dataframe$Description))
+
+head(knitr_dataframe, n =10)
+str( knitr_dataframe)
+```
+
+```{r}
+# Combine these four dataframes into a big one dataframe.
+combined_df = rbind(string_dataframe,dplyr_dataframe,ggplot2_dataframe,knitr_dataframe)
+
+head(combined_df , n =10)
+
+str(combined_df)
+```
+
+
+
+```{r}
+# Use ggplot syntax with faceting to create a 2x2 grid of step plots for the size of each of the four packages (including stringr) over time.
+
+ggplot(combined_df, aes(x = Last.modified, y = Size, group =1)) + geom_step(direction = "hv")+ facet_wrap(~ Description, scales = 'free', nrow = 2)
+
+```
+
+
+
+
+
+### 2) Package Meta-Data
+
+Navigate to the CRAN page for the package dplyr (accessible from https://cran.r-project.org/web/packages/dplyr/index.html, the Summary table for which is pictured below)
+
+Note that the complete web page contains additional fields beyond those pictured above. CRAN maintains an analogous page for each package in the repository.
+
+For each of the following objectives, write a function that accepts as (one of) its argument(s) the name of a package. 
+
+Each function should scrape the associated package web page and leverage regex commands to perform the requested task. Test each function using the argument “dplyr” and print the results.
+
+Hint: URLs for packages in the CRAN repository assume the following structure, where <package> denotes the package name: “https://cran.r-project.org/web/packages/” + <package> + “/index.html”
+
+
+#### a) 
+
+Count the number of external packages in the Imports field.
+
+```{r}
+count_imports =  function(PACKAGE){
+htm = read_html(paste0("https://cran.r-project.org/web/packages/",PACKAGE,"/index.html"))
+
+#get the table
+table_body =  html_nodes(htm,"table")
+
+#get the summary table
+summary_table = table_body[1]
+
+#get the Imports field
+Imports = (html_children(summary_table))[3]
+Imports_expack = html_text((html_children(Imports))[2])
+external_matrix = str_split(Imports_expack,",", simplify = TRUE)
+return (length(external_matrix[1,]))
+
+}
+
+```
+
+
+```{r}
+count_imports("dplyr")
+```
+
+
+#### b) 
+
+Count the number of external packages in the Suggests field.
+
+```{r}
+count_suggests =  function(PACKAGE){
+htm = read_html(paste0("https://cran.r-project.org/web/packages/",PACKAGE,"/index.html"))
+table_body =  html_nodes(htm,"table")
+summary_table = table_body[1]
+Suggest = (html_children(summary_table))[4]
+Suggest_expack = html_text((html_children(Suggest))[2])
+suggest_exmatrix = str_split(Suggest_expack,",", simplify = TRUE)
+return (length(suggest_exmatrix[1,]))
+}
+```
+
+
+```{r}
+count_suggests("dplyr")
+```
+
+
+#### c) 
+
+Count the number of authors (denoted by [aut]) in the Author field.
+
+
+```{r}
+count_author =  function(PACKAGE){
+htm = read_html(paste0("https://cran.r-project.org/web/packages/",PACKAGE,"/index.html"))
+table_body =  html_nodes(htm,"table")
+summary_table = table_body[1]
+# get the "Author" field
+Author = (html_children(summary_table))[6]
+
+# get the author name 
+child = (html_children(Author))[2]
+author_str = html_text(child)
+
+# split the string and extract the names ended with "aut"
+author_matrix = str_split(author_str, ",\n", simplify = TRUE)
+sum(str_detect(author_matrix[1,],regex("aut")))
+}
+```
+
+```{r}
+count_author("dplyr")
+```
+
+
+
+#### d) 
+
+Count the number of package maintainers (denoted by [cre]) in the Author field.
+
+
+```{r}
+count_maintainers =  function(PACKAGE){
+htm = read_html(paste0("https://cran.r-project.org/web/packages/",PACKAGE,"/index.html"))
+table_body =  html_nodes(htm,"table")
+summary_table = table_body[1]
+Author = (html_children(summary_table))[6]
+child = (html_children(Author))[2]
+author_str = html_text(child)
+
+# split the string and extract the names ended with "cre"
+
+author_matrix = str_split(author_str, ",\n", simplify = TRUE)
+sum(str_detect(author_matrix[1,],regex("cre")))
+}
+```
+
+```{r}
+count_maintainers("dplyr")
+```
+
+
+
+#### e) 
+
+Count the total number of packages in the Reverse depends field.
+
+```{r}
+count_reverse =  function(PACKAGE){
+htm = read_html(paste0("https://cran.r-project.org/web/packages/",PACKAGE,"/index.html"))
+table_body =  html_nodes(htm,"table")
+reverse_table = table_body[3]
+reverse_depends = (html_children(reverse_table))[1]
+reverse_dpack = (html_children(reverse_depends))[2]
+reverse_dmatrix = str_split(html_text(reverse_dpack),",", simplify = TRUE)
+return (length(reverse_dmatrix[1,]))
+
+}
+```
+
+
+```{r}
+count_reverse("dplyr")
+```
+
+
+### 3) The Tidyverse: Cursory Exploration
+
+Navigate to the CRAN page for the tidyverse family of packages (accessible from https://cran.r-project.org/web/packages/tidyverse/index.html).
+Write one or more commands using regex to achieve each of the objectives to follow questions:
+
+#### a) 
+
+Isolate the (i) version number and (ii) date published as listed on the tidyverse CRAN page. Write a command using paste0() or equivalent syntax to print the attribution in human-readable format; for example:
+The tidyverse package (version number XXX) was published on XXX.
+
+
+
+```{r}
+URL = "https://cran.r-project.org/web/packages/tidyverse/index.html"
+tidytable_body =  html_nodes(read_html(URL),"table")
+tidy_summary = tidytable_body[1]
+
+tidy_version = (html_children(tidy_summary))[1] #tidyverse version
+tidyversion_num = (html_children(tidy_version))[2]
+tidyversion_num = html_text(tidyversion_num)
+tidyversion_num
+
+tidy_publish = (html_children(tidy_summary))[5] #tidyverse published date
+tidypublish_date = (html_children(tidy_publish))[2]
+tidypublish_date = html_text(tidypublish_date)
+tidypublish_date
+
+```
+
+
+```{r}
+#The tidyverse package (version number XXX) was published on XXX.
+paste0("The tidyverse package (version number ",tidyversion_num,")", " was published on ",tidypublish_date, ".")
+```
+
+
+#### b) 
+
+Identify the authors listed on the tidyverse CRAN page. Write a command using
+paste0() or equivalent syntax to print the attribution in human-readable format; for example:
+The tidyverse package was written by <Author A> and <Author B>.
+
+
+```{r}
+tidy_author_field = (html_children(tidy_summary))[6]
+tidy_author = html_children(tidy_author_field)[2]
+tidy_author = html_text(tidy_author)
+cp_m =str_split(tidy_author, ",", simplify = TRUE)
+cp_m
+author_a = cp_m[1,1]
+author_a = str_extract(author_a, ".*(?=\\ \\[)")
+author_a
+author_b = cp_m[1,3]
+author_b = str_extract(author_b, "(?<=\\\n).*(?=\\ \\[)")
+author_b = trimws(author_b)
+author_b
+```
+```{r}
+# The tidyverse package was written by <Author A> and <Author B>.
+paste0("The tidyverse package was written by ", author_a," and ", author_b, ".")
+```
+
+
+
+#### c) 
+
+List names of packages comprising and/or imported by the Tidyverse (i.e., packages listed in the Imports field). Henceforth we will refer to this group of packages as “Tidyverse Imports.”
+
+```{r}
+tidy_imports = (html_children(tidy_summary))[3]
+tidyimport_child = (html_children(tidy_imports))[2]
+tidyimport_package = html_children(tidyimport_child)
+tidyimport_packages = html_text(tidyimport_package)
+tidyimport_packages
+```
+
+
+
+#### d) 
+
+Identify the Tidyverse Import with the smallest acceptable version number (i.e., the numbers in parentheses accompanying each imported package). Write a command using paste0() or equivalent syntax to print the package name and version number in human-readable format.
+
+
+```{r}
+html_text(tidyimport_child)
+```
+
+```{r}
+tidyimport_matrix = str_split(html_text(tidyimport_child), ",",simplify = TRUE)
+tidyimport_matrix
+```
+
+```{r}
+tidyimport_list = tidyimport_matrix[1,]
+tidyimport_list
+```
+
+```{r}
+version_numb = str_extract(tidyimport_list, "(?<=≥\n?).*(?=\\))")
+version_numb 
+```
+
+```{r}
+smallest_version = version_numb[str_detect(version_numb, "0.1.[0-9]+")] 
+smallest_version
+smallest_package = tidyimport_packages[str_detect(version_numb, "0.1.[0-9]+")]
+smallest_package
+```
+```{r}
+paste0("The tidyverse package '",smallest_package,"' is the package with the smallest acceptable version number:",smallest_version,".")
+```
+
+
+#### e) 
+
+Count the number of Tidyverse Imports whose names end in the letter r.
+
+```{r}
+tidyimport_packages
+sum(str_detect(tidyimport_packages, regex('.*r$')))
+```
+
+
+#### f) 
+
+List the Tidyverse Imports whose names do not comprise solely lower-case letters.
+
+```{r}
+tidyimport_packages[str_detect(tidyimport_packages, regex('.*[A-Z_0-9]+'))]
+```
+
+
+
+
+### 4) The Tidyverse: Deep Dive
+
+#### a) 
+
+Write a function that accepts as its argument (i) the name of a package and (ii) a CRAN field specification for one of the fields located in the Summary table of the package web page.
+
+For example, if we were interested in scraping the version number for package dplyr, then the arguments to our function would be “dplyr” and “Version”, respectively.
+
+With this information, the function should be able to scrape the desired field of information from the Summary table of the CRAN page for the specified package. The output from your function should be a character string of all contents from the desired field. Test your function by scraping the tidyverse version number and date published, which should agree with your responses to problem 3(a).
+
+
+```{r}
+scrape_field = function(PACKAge, field){
+Url= read_html(paste0("https://cran.r-project.org/web/packages/",PACKAge,"/index.html"))
+Table_body = html_nodes(Url,"table")
+Table_summary = Table_body[1]
+Summary_grandchi = html_children((html_children(Table_summary)))
+Summary_grandchi = html_text(Summary_grandchi)
+i = grep(field,Summary_grandchi)
+if (length(i) == 0){
+  return("")
+} else{
+return(Summary_grandchi[i+1])
+}
+}
+```
+
+
+```{r}
+# test some packages which don't have "Imports" field.
+scrape_field("jsonlite","Imports")
+```
+
+
+```{r}
+#Test function by scraping the tidyverse version number and date published.
+scrape_field("tidyverse","Published")
+scrape_field("tidyverse","Version")
+```
+
+
+
+#### b) 
+
+Create an adjacency matrix of packages imported by each of the Tidyverse Imports. using for loops In your knitted file, print the lower right corner as a submatrix with 7 rows and 7 columns. The dimensions should be labeled with the corresponding package names.
+
+Hint: Use your function in part (a) to extract the names of packages listed in the Import field for each Tidyverse Import.
+
+Hint: In this context, the column labels for your adjacency matrix should be Tidyverse Imports, and the row names should be the list of unique packages imported by one or more Tidyverse Imports. The element located at position (i, j) should be a 1 if package j imports package i, and a 0 if it does not. 
+
+
+
+
+```{r}
+tidyimport_packages
+```
+
+
+```{r}
+# Get the imports packages for each tidyverse imports.
+all_imports =c()
+for (i in 1:length(tidyimport_packages)){
+each_packages = scrape_field(tidyimport_packages[i], "Imports")
+all_imports = append(all_imports,each_packages)}
+all_imports
+```
+
+
+```{r}
+all_matrix = str_split(all_imports, ",",simplify = TRUE)
+head(all_matrix)
+```
+```{r}
+u_row = c()
+for (i in 1:26){
+Row = all_matrix[i,]
+# get rid of empty strings
+Row = Row[Row != ""]
+Len = length(Row)
+if(Len == 0){
+  next
+}
+for (t in 1:(Len)){
+  result = str_detect(Row[t], regex("≥"))
+  
+  if (result ){
+    #get rid of version number
+    Row[t] = str_extract(Row[t], regex("[A-z0-9]+(?= \\()"))  
+  }
+}
+u_row = append(u_row, Row)
+}
+u_row
+```
+
+
+```{r}
+for (i in 1:length(u_row)){
+u_row[i] = trimws(u_row[i])}
+uni_row = unique(u_row)
+uni_row
+```
+
+
+```{r}
+#create a empty matrix
+adjacent = matrix( , nrow = length(uni_row), ncol = length(tidyimport_packages))
+
+# create column and row names for the matrix
+colnames(adjacent) =c(tidyimport_packages)
+rownames(adjacent) =c(uni_row)
+
+for (h in 1:length(tidyimport_packages)){
+each_import = scrape_field(tidyimport_packages[h],"Imports" )
+each_matrix = str_split(each_import, ",",simplify = TRUE)
+PAC = each_matrix[1,]
+
+# get rid of version numbers of the packages.
+for (t in 1:length(PAC)){
+  if (str_detect(PAC[t], regex("≥"))){
+    PAC[t] = str_extract(PAC[t], regex("[A-z0-9]+(?= \\()"))  
+  }
+}
+
+counts = c()
+for (i in 1:length(uni_row) ){
+counts = append(counts, sum(str_detect(PAC, uni_row[i])))}
+adjacent[,h] = counts
+}
+
+head(adjacent)
+```
+
+```{r}
+# Print the submatrix
+adjacent[seq(1,7),seq(1,7)]
+```
+
+
+
+d) List the names of any Tidyverse Imports that require compilation from source files.
+Hint: Use your function in part (a) to extract the NeedsCompilation field associated with each Tidyverse Import.
+
+
+```{r}
+compilation_vec = c()
+for (i in 1:length(tidyimport_packages)) {
+compilation_vec = append(compilation_vec, scrape_field(tidyimport_packages[i],"NeedsCompilation"))
+}
+compilation_vec
+```
+
+```{r}
+tidyimport_packages[compilation_vec == "yes"]
+```
+
+
+c) Plot a histogram in ggplot for the number of packages imported by each Tidyverse Import. Your plot should be visually appealing and labeled appropriately.
+
+
+```{r}
+all_imports
+```
+
+
+```{r}
+# get the number of packages imported by each Tidyverse Import.
+tidy_NUM = c()
+for (i in 1:length(all_imports)){
+tidy_imnumber = str_split(all_imports[i], ",",simplify = TRUE)
+
+if(tidy_imnumber[1,1] ==""){
+  append_number = 0}else{
+  append_number = length(tidy_imnumber[1,])
+  }
+
+tidy_NUM = append(tidy_NUM,append_number)}
+tidy_NUM
+```
+
+
+```{r}
+histogram_table = data.frame(tidy_NUM)
+row.names(histogram_table)= tidyimport_packages
+head(histogram_table,n = 10)
+```
+
+```{r}
+ggplot(histogram_table, aes(x =tidyimport_packages, y = tidy_NUM )) +geom_bar(stat='identity') + theme(axis.text.x = element_text(angle = 90))+ ggtitle ("Number of Packages Imported by Tidyverse Import") + theme(plot.title = element_text(hjust = 0.5))
+```
